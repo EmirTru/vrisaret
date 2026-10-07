@@ -1,7 +1,7 @@
 /**
  * TÜBİTAK 2204-A: VR El Takibi ile Sürekli İşaret Dili Tanıma Motoru (app.js)
  * %100 İstemci Taraflı (Client-Side), Sıfır Sunucu Gereksinimi.
- * Meta Quest 2 Browser & GitHub Pages Uyumlu.
+ * Sürekli 3D El İskeleti (Kemikler & Eklemler) Takibi & Edge AI Çıkarımı.
  */
 
 // 21 Standart Eklem İsimleri
@@ -14,9 +14,23 @@ const SELECTED_JOINTS = [
   "pinky-finger-phalanx-proximal", "pinky-finger-phalanx-intermediate", "pinky-finger-phalanx-distal", "pinky-finger-tip"
 ];
 
-// Sınıflar ve Türkçe İsimler
-let CLASSES = ["basim", "agriyor", "ambulans", "cagirin", "yardim", "nefes", "ilac", "notr"];
-let CLASS_DISPLAY = {
+// El İskeleti Kemik Bağlantıları (20 Kemik Segmenti / El)
+const SKELETON_CONNECTIONS = [
+  // Başparmak
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  // İşaret Parmağı
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  // Orta Parmak
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  // Yüzük Parmağı
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  // Serçe Parmak
+  [0, 17], [17, 18], [18, 19], [19, 20]
+];
+
+// Sınıflar, Türkçe İsimler ve Hareket Rehberi Tanımları
+const CLASSES = ["basim", "agriyor", "ambulans", "cagirin", "yardim", "nefes", "ilac", "notr"];
+const CLASS_DISPLAY = {
   "basim": "Başım",
   "agriyor": "Ağrıyor",
   "ambulans": "Ambulans",
@@ -25,6 +39,17 @@ let CLASS_DISPLAY = {
   "nefes": "Nefes",
   "ilac": "İlaç",
   "notr": "Nötr / Bekleme"
+};
+
+const CLASS_DESCRIPTIONS = {
+  "basim": "İşaret parmağı şakak/başa dokunur",
+  "agriyor": "İki el titretilerek sancı ifadesi verilir",
+  "ambulans": "Eller baş üstünde siren gibi döner",
+  "cagirin": "Açık el dışarıdan içeriye çekilir",
+  "yardim": "Sol el üstüne sağ yumruk konur",
+  "nefes": "Eller göğüste açılıp kapanır",
+  "ilac": "Avuç içine hap koyma jesti yapılır",
+  "notr": "Eller serbest dinlenmede"
 };
 
 let SENTENCE_RULES = [
@@ -49,14 +74,14 @@ let SENTENCE_RULES = [
 const CONFIG = {
   sequenceLength: 45,
   numFeatures: 126,
-  inferenceIntervalFrames: 4, // Quest 2 performansı için her 4 karede bir çıkarım
+  inferenceIntervalFrames: 3, // Sürekli ve akıcı takip: her 3 karede bir çıkarım
   confidenceThreshold: 0.80,
   debounceCount: 3
 };
 
 // Uygulama Durumu
 const appState = {
-  activeMode: "tab-infer", // "tab-infer" veya "tab-collect"
+  activeMode: "tab-infer",
   model: null,
   isModelLoaded: false,
   slidingBuffer: [],
@@ -67,7 +92,7 @@ const appState = {
   consecutiveDetections: 0,
   lastInferenceMs: 0,
   topPredictions: [],
-  // Veri Toplama Durumu
+  // Veri Toplama
   collectLabel: "basim",
   isRecording: false,
   isCountingDown: false,
@@ -79,7 +104,7 @@ const appState = {
   vrHudTexture: null
 };
 
-// Web Audio API ile Ses Geri Bildirimi
+// Web Audio API
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playTone(freq = 440, duration = 0.1, type = 'sine') {
   try {
@@ -115,6 +140,8 @@ function speakTurkish(text) {
 // Three.js Değişkenleri
 let scene, camera, renderer, hudMesh;
 let leftJointSpheres = [], rightJointSpheres = [];
+let leftSkeletonLines, rightSkeletonLines;
+let leftBonePositions, rightBonePositions;
 
 async function init() {
   initThree();
@@ -124,20 +151,15 @@ async function init() {
 
 async function loadModel() {
   const modelStatusEl = document.getElementById('model-status');
-  
-  // 1. Meta Veriyi Yükle
   try {
     const metaRes = await fetch('./model/classes.json');
     if (metaRes.ok) {
       const meta = await metaRes.json();
-      CLASSES = meta.classes || CLASSES;
-      CLASS_DISPLAY = meta.display_names || CLASS_DISPLAY;
       if (meta.sentence_rules) SENTENCE_RULES = meta.sentence_rules;
       if (meta.sequence_length) CONFIG.sequenceLength = meta.sequence_length;
     }
   } catch (e) {}
 
-  // 2. TensorFlow.js Modelini Yükle
   try {
     modelStatusEl.innerHTML = '🧠 AI Modeli: <span style="color:#facc15">Yükleniyor (TF.js)...</span>';
     appState.model = await tf.loadLayersModel('./model/model.json');
@@ -145,12 +167,11 @@ async function loadModel() {
     modelStatusEl.innerHTML = '🧠 AI Modeli: <strong style="color:#34d399">Aktif (WebGL Edge AI)</strong>';
     console.log("[✓] Model başarıyla yüklendi!");
 
-    // Warmup
     const dummy = tf.zeros([1, CONFIG.sequenceLength, CONFIG.numFeatures]);
     appState.model.predict(dummy).dispose();
     dummy.dispose();
   } catch (err) {
-    console.warn("TFJS model yükleme uyarısı:", err);
+    console.warn("TFJS model uyarısı:", err);
     modelStatusEl.innerHTML = '🧠 AI Modeli: <strong style="color:#38bdf8">Kullanıma Hazır</strong>';
   }
 }
@@ -165,7 +186,7 @@ function initThree() {
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
   scene.add(ambientLight);
-  const dirLight = new THREE.DirectionalLight(0x38bdf8, 0.8);
+  const dirLight = new THREE.DirectionalLight(0x38bdf8, 0.9);
   dirLight.position.set(2, 4, 2);
   scene.add(dirLight);
 
@@ -181,9 +202,9 @@ function initThree() {
   createVRButton();
 
   // El İskeleti Küreleri
-  const leftMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3 });
-  const rightMat = new THREE.MeshStandardMaterial({ color: 0x34d399, roughness: 0.3 });
-  const sphereGeo = new THREE.SphereGeometry(0.008, 8, 8);
+  const leftMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, emissive: 0x0284c7, emissiveIntensity: 0.2 });
+  const rightMat = new THREE.MeshStandardMaterial({ color: 0x34d399, roughness: 0.3, emissive: 0x059669, emissiveIntensity: 0.2 });
+  const sphereGeo = new THREE.SphereGeometry(0.007, 8, 8);
 
   for (let i = 0; i < 21; i++) {
     const lSphere = new THREE.Mesh(sphereGeo, leftMat);
@@ -196,6 +217,25 @@ function initThree() {
     scene.add(rSphere);
     rightJointSpheres.push(rSphere);
   }
+
+  // 3D El Kemik Çizgileri (LineSegments ile gerçekçi iskelet)
+  const boneCount = SKELETON_CONNECTIONS.length;
+  leftBonePositions = new Float32Array(boneCount * 2 * 3);
+  rightBonePositions = new Float32Array(boneCount * 2 * 3);
+
+  const leftLineGeo = new THREE.BufferGeometry();
+  leftLineGeo.setAttribute('position', new THREE.BufferAttribute(leftBonePositions, 3));
+  const leftLineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 2, transparent: true, opacity: 0.85 });
+  leftSkeletonLines = new THREE.LineSegments(leftLineGeo, leftLineMat);
+  leftSkeletonLines.visible = false;
+  scene.add(leftSkeletonLines);
+
+  const rightLineGeo = new THREE.BufferGeometry();
+  rightLineGeo.setAttribute('position', new THREE.BufferAttribute(rightBonePositions, 3));
+  const rightLineMat = new THREE.LineBasicMaterial({ color: 0x34d399, linewidth: 2, transparent: true, opacity: 0.85 });
+  rightSkeletonLines = new THREE.LineSegments(rightLineGeo, rightLineMat);
+  rightSkeletonLines.visible = false;
+  scene.add(rightSkeletonLines);
 
   initVRHUD();
 
@@ -216,7 +256,7 @@ function createVRButton() {
         const btn = document.createElement('button');
         btn.textContent = '👓 VR BAŞLAT (Meta Quest 2)';
         btn.className = 'btn-primary';
-        btn.style.padding = '14px 32px';
+        btn.style.padding = '14px 34px';
         btn.style.fontSize = '1.15rem';
         btn.style.fontWeight = 'bold';
         btn.style.boxShadow = '0 0 25px rgba(2, 132, 199, 0.7)';
@@ -238,7 +278,7 @@ function initVRHUD() {
   appState.vrHudCanvas = canvas;
   appState.vrHudTexture = new THREE.CanvasTexture(canvas);
 
-  const hudGeo = new THREE.PlaneGeometry(1.15, 0.58);
+  const hudGeo = new THREE.PlaneGeometry(1.2, 0.6);
   const hudMat = new THREE.MeshBasicMaterial({
     map: appState.vrHudTexture,
     transparent: true,
@@ -255,62 +295,85 @@ function initVRHUD() {
 
 function renderVRHUD() {
   const ctx = appState.vrHudCanvas.getContext('2d');
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
   ctx.fillRect(0, 0, 1024, 512);
 
   ctx.strokeStyle = appState.isRecording ? '#ef4444' : '#38bdf8';
   ctx.lineWidth = 8;
   ctx.strokeRect(8, 8, 1008, 496);
 
-  if (appState.activeMode === "tab-infer") {
-    // TERCÜMAN MODU
+  if (appState.activeMode !== "tab-collect") {
+    // CANLI TERCÜMAN & REHBER
     ctx.fillStyle = '#94a3b8';
-    ctx.font = 'bold 28px sans-serif';
-    ctx.fillText("TÜBİTAK 2204-A | GERÇEK ZAMANLI İŞARET DİLİ TERCÜMANI", 40, 55);
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillText("TÜBİTAK 2204-A | GERÇEK ZAMANLI İŞARET DİLİ TERCÜMANI", 40, 52);
 
+    // Anlık Cümle
     ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 44px sans-serif';
+    ctx.font = 'bold 42px sans-serif';
     const disp = appState.currentSentence.length > 38 
       ? appState.currentSentence.substring(0, 38) + "..." 
       : appState.currentSentence;
-    ctx.fillText(disp, 40, 130);
+    ctx.fillText(disp, 40, 120);
 
+    // Algılanan Kelimeler
     ctx.fillStyle = '#cbd5e1';
-    ctx.font = '26px sans-serif';
+    ctx.font = '24px sans-serif';
     const wordsStr = appState.recognizedWords.length > 0 
       ? appState.recognizedWords.map(w => CLASS_DISPLAY[w] || w).join("  ➔  ")
-      : "(Hareket bekleniyor...)";
-    ctx.fillText(`Kelimeler: ${wordsStr}`, 40, 190);
+      : "(Sürekli el takibi aktif, hareket bekleniyor...)";
+    ctx.fillText(`Kelimeler: ${wordsStr}`, 40, 175);
 
+    // Sol Taraf: Canlı Olasılık Barları
     ctx.fillStyle = '#64748b';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText("CANLI TAHMİN OLASILIKLARI:", 40, 250);
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText("CANLI TAHMİNLER:", 40, 225);
 
-    const top = appState.topPredictions.slice(0, 3);
+    const top = appState.topPredictions.slice(0, 4);
     top.forEach((pred, idx) => {
-      const yPos = 295 + idx * 45;
+      const yPos = 265 + idx * 42;
       const name = CLASS_DISPLAY[pred.label] || pred.label;
       const pct = Math.round(pred.prob * 100);
 
       ctx.fillStyle = '#f8fafc';
-      ctx.font = '24px sans-serif';
+      ctx.font = '22px sans-serif';
       ctx.fillText(`${name}:`, 40, yPos);
 
       ctx.fillStyle = '#334155';
-      ctx.fillRect(220, yPos - 20, 430, 24);
+      ctx.fillRect(180, yPos - 18, 280, 20);
 
       ctx.fillStyle = pred.prob >= CONFIG.confidenceThreshold ? '#34d399' : '#38bdf8';
-      ctx.fillRect(220, yPos - 20, 430 * pred.prob, 24);
+      ctx.fillRect(180, yPos - 18, 280 * pred.prob, 20);
 
       ctx.fillStyle = '#f8fafc';
-      ctx.fillText(`%${pct}`, 680, yPos);
+      ctx.fillText(`%${pct}`, 475, yPos);
+    });
+
+    // Sağ Taraf: VR İçi Hareket Rehberi & İpuçları
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText("HAREKET İPUÇLARI (TÜBİTAK):", 560, 225);
+
+    const guideHints = [
+      "🧠 Başım: Sağ işaret parmağı şakakta",
+      "⚡ Ağrıyor: İki el titretilir",
+      "🚑 Ambulans: Eller başta siren döner",
+      "📢 Çağırın: El göğse doğru çekilir",
+      "🆘 Yardım: Sol el üstüne sağ yumruk"
+    ];
+
+    guideHints.forEach((hint, idx) => {
+      const yPos = 265 + idx * 36;
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '19px sans-serif';
+      ctx.fillText(hint, 560, yPos);
     });
 
     ctx.fillStyle = '#64748b';
-    ctx.font = '20px sans-serif';
-    ctx.fillText(`Gecikme: ${appState.lastInferenceMs}ms | Sol el pinch: Temizle`, 40, 470);
+    ctx.font = '19px sans-serif';
+    ctx.fillText(`⚡ Gecikme: ${appState.lastInferenceMs}ms | Sol el pinch: Cümleyi Temizle`, 40, 475);
   } else {
-    // VERİ TOPLAYICI MODU
+    // VERİ TOPLAYICI
     ctx.fillStyle = '#94a3b8';
     ctx.font = 'bold 28px sans-serif';
     ctx.fillText("TÜBİTAK 2204-A | VERİ TOPLAYICI MODU", 40, 55);
@@ -330,7 +393,7 @@ function renderVRHUD() {
 
     ctx.fillStyle = '#34d399';
     ctx.font = '24px sans-serif';
-    ctx.fillText(`Bu Oturumdaki Toplam Kayıt: ${appState.collectedDataset.length} örnek | Sağ el pinch: Kayıt başlat`, 40, 430);
+    ctx.fillText(`Bu Oturumdaki Toplam Kayıt: ${appState.collectedDataset.length} | Sağ el pinch: Kayıt başlat`, 40, 430);
   }
 
   appState.vrHudTexture.needsUpdate = true;
@@ -359,7 +422,28 @@ function normalizeHand(rawJoints) {
   return res;
 }
 
-// Ana WebXR Döngüsü
+// İskelet Kemik Pozisyonlarını Güncelle
+function updateSkeletonLines(joints, bonePositionsArray, lineMesh) {
+  if (!joints || joints.length !== 21) {
+    lineMesh.visible = false;
+    return;
+  }
+  let pIdx = 0;
+  for (let b = 0; b < SKELETON_CONNECTIONS.length; b++) {
+    const [j1, j2] = SKELETON_CONNECTIONS[b];
+    bonePositionsArray[pIdx++] = joints[j1].x;
+    bonePositionsArray[pIdx++] = joints[j1].y;
+    bonePositionsArray[pIdx++] = joints[j1].z;
+
+    bonePositionsArray[pIdx++] = joints[j2].x;
+    bonePositionsArray[pIdx++] = joints[j2].y;
+    bonePositionsArray[pIdx++] = joints[j2].z;
+  }
+  lineMesh.geometry.attributes.position.needsUpdate = true;
+  lineMesh.visible = true;
+}
+
+// Ana WebXR Döngüsü (Sürekli Takip & Çıkarım)
 async function onXRFrame(time, frame) {
   if (frame) {
     const referenceSpace = renderer.xr.getReferenceSpace();
@@ -368,6 +452,7 @@ async function onXRFrame(time, frame) {
     let leftHandJoints = null;
     let rightHandJoints = null;
 
+    // WebXR Hand Input API: Sürekli 21 Eklem Sorgulama
     for (const inputSource of session.inputSources) {
       if (inputSource.hand) {
         const handedness = inputSource.handedness;
@@ -397,14 +482,18 @@ async function onXRFrame(time, frame) {
       }
     }
 
+    // Kemik Segmentlerini Güncelle (Full 3D Anatomik İskelet)
+    updateSkeletonLines(leftHandJoints, leftBonePositions, leftSkeletonLines);
+    updateSkeletonLines(rightHandJoints, rightBonePositions, rightSkeletonLines);
+
+    // Takip Durumu UI
     document.getElementById('left-state').textContent = leftHandJoints ? 'Takipte' : 'Yok';
     document.getElementById('right-state').textContent = rightHandJoints ? 'Takipte' : 'Yok';
     document.getElementById('left-state').style.color = leftHandJoints ? '#34d399' : '#f87171';
     document.getElementById('right-state').style.color = rightHandJoints ? '#34d399' : '#f87171';
 
     // Pinch Jestleri
-    // Sol El Pinch: Cümleyi Temizle
-    if (leftHandJoints && appState.activeMode === "tab-infer") {
+    if (leftHandJoints && appState.activeMode !== "tab-collect") {
       const d = Math.hypot(
         leftHandJoints[4].x - leftHandJoints[8].x,
         leftHandJoints[4].y - leftHandJoints[8].y,
@@ -413,7 +502,6 @@ async function onXRFrame(time, frame) {
       if (d < 0.025) clearSentence();
     }
 
-    // Sağ El Pinch: Veri Toplayıcıda Kayıt Başlat
     if (rightHandJoints && appState.activeMode === "tab-collect" && !appState.isRecording && !appState.isCountingDown) {
       const d = Math.hypot(
         rightHandJoints[4].x - rightHandJoints[8].x,
@@ -426,13 +514,13 @@ async function onXRFrame(time, frame) {
       }
     }
 
-    // Normalizasyon
+    // Kinematik Normalizasyon
     const normLeft = normalizeHand(leftHandJoints);
     const normRight = normalizeHand(rightHandJoints);
     const frameFeatures = [...normLeft, ...normRight];
 
-    // MOD 1: ÇIKARIM (INFERENCE)
-    if (appState.activeMode === "tab-infer") {
+    // MOD 1: CANLI ÇIKARIM (SÜREKLİ)
+    if (appState.activeMode !== "tab-collect") {
       appState.slidingBuffer.push(frameFeatures);
       if (appState.slidingBuffer.length > CONFIG.sequenceLength) {
         appState.slidingBuffer.shift();
@@ -448,7 +536,7 @@ async function onXRFrame(time, frame) {
       }
     }
 
-    // MOD 2: VERİ TOPLAMA (DATA COLLECTION)
+    // MOD 2: VERİ TOPLAMA
     if (appState.activeMode === "tab-collect" && appState.isRecording) {
       if (time - appState.lastFrameTime >= 33.33) {
         appState.lastFrameTime = time;
@@ -477,7 +565,7 @@ async function runInference() {
     pred.dispose();
 
     appState.lastInferenceMs = Math.round(performance.now() - t0);
-    document.getElementById('fps-status').textContent = `⚡ Gecikme: ${appState.lastInferenceMs} ms | WebGL`;
+    document.getElementById('fps-status').textContent = `⚡ Canlı Çıkarım: ${appState.lastInferenceMs} ms | WebGL`;
 
     const predList = [];
     for (let i = 0; i < CLASSES.length; i++) {
@@ -583,7 +671,6 @@ function clearSentence() {
   renderVRHUD();
 }
 
-// Veri Toplayıcı Fonksiyonları (Sıfır Sunucu)
 function startCollectCountdown() {
   if (appState.isRecording || appState.isCountingDown) return;
   appState.isCountingDown = true;
@@ -628,7 +715,6 @@ function finishRecordSample() {
 }
 
 function setupEventListeners() {
-  // Tablar
   document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
       document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -665,7 +751,7 @@ function setupEventListeners() {
     seq.forEach((w, idx) => setTimeout(() => onWordRecognized(w), (idx + 1) * 800));
   });
 
-  // Veri Toplayıcı Dinleyicileri
+  // Veri Toplayıcı
   document.getElementById('collect-sign-select').addEventListener('change', (e) => {
     appState.collectLabel = e.target.value;
     renderVRHUD();
