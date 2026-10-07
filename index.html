@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TÜBİTAK 2204-A: WebXR ve VR El Takibi ile Sürekli İşaret Dili Tanıma</title>
+  <style>
+    :root {
+      --primary: #38bdf8;
+      --primary-dark: #0284c7;
+      --bg: #090d16;
+      --card-bg: #111827;
+      --border: #1f2937;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 0;
+      margin: 0;
+    }
+    header {
+      background: linear-gradient(180deg, #0f172a 0%, #090d16 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+    }
+    h1 {
+      font-size: 2.3rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #ffffff 40%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--primary);
+      box-shadow: 0 12px 30px rgba(56, 189, 248, 0.15);
+    }
+    .card-icon {
+      font-size: 2.2rem;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+    .card p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      flex: 1;
+    }
+    .btn {
+      display: inline-block;
+      text-align: center;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--primary-dark);
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #0369a1;
+      box-shadow: 0 0 15px rgba(2, 132, 199, 0.5);
+    }
+    .btn-secondary {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+    }
+    .btn-secondary:hover {
+      background: #334155;
+      color: white;
+    }
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .feature-box {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+    .feature-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .feature-list li {
+      display: flex;
+      gap: 12px;
+      font-size: 0.92rem;
+      color: #cbd5e1;
+    }
+    .feature-list li strong {
+      color: var(--primary);
+    }
+    footer {
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 24px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="badge">TÜBİTAK 2204-A Lise Araştırma Projeleri Yarışması</div>
+    <h1>WebXR ve VR El Takibi ile Sürekli İşaret Dili Tanıma</h1>
+    <p class="subtitle">
+      Meta Quest 2 WebXR Hand Input API ile 3D el kinematik verisi toplama,
+      Çift Yönlü LSTM (BiLSTM) Derin Öğrenme Modeli ve Doğrudan VR Gözlükte Çalışan TensorFlow.js Edge AI Çıkarımı.
+    </p>
+  </header>
+
+  <div class="container">
+    <div class="cards-grid">
+      <!-- Kart 1: Canlı Çıkarım -->
+      <div class="card" style="border-top: 4px solid #38bdf8;">
+        <div>
+          <div class="card-icon">👓</div>
+          <h2>VR Canlı Tercüman (Inference)</h2>
+          <p>
+            Eğitilen modeli Meta Quest 2 tarayıcısında çalıştırır. Kayan pencere (Sliding Window) el hareketlerini analiz eder,
+            sağlık temalı işaretleri tanır, tam Türkçe cümle oluşturur ve seslendirir (TTS).
+          </p>
+        </div>
+        <a href="./webxr_inference/index.html" class="btn btn-primary">🚀 VR Çıkarımı Başlat</a>
+      </div>
+
+      <!-- Kart 2: Veri Toplayıcı -->
+      <div class="card" style="border-top: 4px solid #34d399;">
+        <div>
+          <div class="card-icon">🖐️</div>
+          <h2>WebXR Veri Toplayıcı (Collector)</h2>
+          <p>
+            Meta Quest 2 ile 21 el ekleminin 3D koordinatlarını 30 FPS hızında kaydeder.
+            Bilek merkezli ve el boyutu normalizasyonu uygular. Verileri JSON formatında dışa aktarır veya sunucuya kaydeder.
+          </p>
+        </div>
+        <a href="./webxr_collector/index.html" class="btn btn-secondary">📊 Veri Toplayıcıyı Aç</a>
+      </div>
+    </div>
+
+    <div class="feature-box">
+      <h3 class="section-title">🔬 Bilimsel ve Teknik İnovasyon Özeti</h3>
+      <ul class="feature-list">
+        <li>
+          <span>🌐</span>
+          <div>
+            <strong>WebXR Hand Input API:</strong>
+            Özel veri eldivenine veya harici kameraya ihtiyaç duymadan Meta Quest 2 dahili kameralarıyla 21 eklem noktasını yakalar.
+          </div>
+        </li>
+        <li>
+          <span>📐</span>
+          <div>
+            <strong>Öklid Normalizasyonu:</strong>
+            Bilek merkezli öteleme ve orta parmak kök mesafesiyle el boyutu ölçek değişmezliği (Scale & Translation Invariance).
+          </div>
+        </li>
+        <li>
+          <span>🧠</span>
+          <div>
+            <strong>BiLSTM Zaman Serisi Modeli:</strong>
+            126 öznitelikli (2 El x 21 Eklem x 3 Eksen) 45 karelik zaman penceresinde zamansal bağlamı ileri ve geri analiz eder.
+          </div>
+        </li>
+        <li>
+          <span>⚡</span>
+          <div>
+            <strong>%100 Edge AI (On-Device):</strong>
+            TensorFlow.js ve WebGL ile doğrudan Meta Quest Browser içinde çalışır; harici sunucu veya PC kablosu gerektirmez.
+          </div>
+        </li>
+        <li>
+          <span>🏥</span>
+          <div>
+            <strong>Sağlık Odaklı Senaryo:</strong>
+            "Başım ağrıyor, ambulans çağırın!" gibi acil durum ifadelerini sürekli işaret dilinde akıcı cümlelere ve sese çevirir.
+          </div>
+        </li>
+        <li>
+          <span>☁️</span>
+          <div>
+            <strong>GitHub Pages & SSL Desteği:</strong>
+            Statik yapısı sayesinde doğrudan GitHub Pages üzerinden ücretsiz HTTPS ile Quest 2'de sıfır kurulumla çalışır.
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    TÜBİTAK 2204-A Proje Geliştirme Platformu | WebXR & AI Entegrasyonu
+  </footer>
+</body>
+</html>

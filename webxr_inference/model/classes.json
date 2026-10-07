@@ -1,0 +1,60 @@
+{
+  "classes": [
+    "basim",
+    "agriyor",
+    "ambulans",
+    "cagirin",
+    "yardim",
+    "nefes",
+    "ilac",
+    "notr"
+  ],
+  "display_names": {
+    "basim": "Başım",
+    "agriyor": "Ağrıyor",
+    "ambulans": "Ambulans",
+    "cagirin": "Çağırın",
+    "yardim": "Yardım",
+    "nefes": "Nefes",
+    "ilac": "İlaç",
+    "notr": "Nötr / Bekleme"
+  },
+  "sequence_length": 45,
+  "num_features": 126,
+  "sample_fps": 30,
+  "sentence_rules": [
+    {
+      "sequence": [
+        "basim",
+        "agriyor",
+        "ambulans",
+        "cagirin"
+      ],
+      "sentence": "Başım çok ağrıyor, lütfen hemen ambulans çağırın!"
+    },
+    {
+      "sequence": [
+        "yardim",
+        "nefes",
+        "agriyor"
+      ],
+      "sentence": "Yardım edin, nefes alamıyorum, göğsüm ağrıyor!"
+    },
+    {
+      "sequence": [
+        "ilac",
+        "basim",
+        "agriyor"
+      ],
+      "sentence": "Başım çok ağrıyor, lütfen ağrı kesici ilaç verin."
+    },
+    {
+      "sequence": [
+        "yardim",
+        "ambulans",
+        "cagirin"
+      ],
+      "sentence": "Acil durum! Lütfen bir ambulans çağırın, yardım edin!"
+    }
+  ]
+}
